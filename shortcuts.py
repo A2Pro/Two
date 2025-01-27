@@ -151,14 +151,41 @@ class Terminal:
         with open(self.paths_file, 'w') as f:
             json.dump(self.paths, f, indent=4)
 
-    def add_shortcut(self, name, program, arguments=""):
-        if not name or not program:
-            print("Error: Shortcut name and program path are required!")
+    def add_path(self, name, filepath):
+        if not name or not filepath:
+            print("Error: Name and path are required!")
+            return
+            
+        self.paths[name] = {
+            'program': filepath
+        }
+        self.save_paths()
+        print(f"Added path: {name}")
+    
+    def add_ocr(self, name, path, text, arguments):
+        if not name or not path:
+            print("Error: Shortcut name and path name are required!")
             return
         
         self.shortcuts[name] = {
-            'program': program,
-            'arguments': arguments
+            'path': path,
+            'text':text,
+            'arguments' : arguments,
+            'ocr' : True
+        }
+        self.save_shortcuts()
+        print(f"Added shortcut: {name}")
+        
+
+    def add_shortcut(self, name, path, arguments):
+        if not name or not path:
+            print("Error: Shortcut name and path name are required!")
+            return
+        
+        self.shortcuts[name] = {
+            'path': path,
+            'arguments': arguments,
+            'ocr':False
         }
         self.save_shortcuts()
         print(f"Added shortcut: {name}")
@@ -170,6 +197,14 @@ class Terminal:
             print(f"Removed shortcut: {name}")
         else:
             print(f"Error: Shortcut '{name}' not found")
+    
+    def remove_path(self, name):
+        if name in self.paths:
+            del self.paths[name]
+            self.save_shortcuts()
+            print(f"Removed shortcuts: {name}")
+        else:
+            print(f"Error: Path '{name}' not found")
 
     def list_shortcuts(self):
         if not self.shortcuts:
@@ -184,24 +219,41 @@ class Terminal:
     def handle_settings_command(self, args):
         if not args:
             print("\nSettings Commands:")
-            print("settings add <name> <program> [arguments] - Add a new shortcut")
-            print("settings remove <name>                    - Remove a shortcut")
-            print("settings list                            - List all shortcuts")
+            print("settings add <name> <path> [arguments]                   - Add a new shortcut")
+            print("settings ocr <name> <path> <text_to_click> <arguments>       - Add a new ocr shortcut")
+            print("settings addpath <name> <pathname>                       - Add a new path ")
+            print("settings remove <name>                                   - Remove a shortcut")
+            print("settings list                                            - List all shortcuts")
+            print("settings removepath <name>                               - Remove a path")
+            print("settings listpaths                                       - List all paths")
             return False
 
-        parts = args.split(maxsplit=2)
+        parts = args.split()
         subcommand = parts[0]
 
         if subcommand == "add" and len(parts) >= 3:
             name = parts[1]
-            program_args = parts[2].split(maxsplit=1)
-            program = program_args[0]
-            arguments = program_args[1] if len(program_args) > 1 else ""
+            program = parts[2]
+            arguments = parts[3] if len(parts) > 3 else ""
             self.add_shortcut(name, program, arguments)
+        elif subcommand == "ocr" and len(parts) >=4 :
+            name = parts[1]
+            program = parts[2]
+            arguments = parts[4] if len(parts) > 4 else ""
+            text = parts[3]
+            self.add_ocr(name, program, text, arguments)
+        elif subcommand == "addpath" and len(parts) >= 3:
+            name = parts[1].strip()
+            filepath = parts[2].strip()
+            self.add_path(name, filepath)
         elif subcommand == "remove" and len(parts) == 2:
+            self.remove_shortcut(parts[1])
+        elif subcommand == "removepath" and len(parts) == 2:
             self.remove_shortcut(parts[1])
         elif subcommand == "list":
             self.list_shortcuts()
+        elif subcommand == "listpaths":
+            self.list_paths()
         else:
             print("Invalid settings command. Type 'settings' for usage.")
 
@@ -266,8 +318,6 @@ class Terminal:
         if "open" in command:
             self.open_app(command.split(" ")[1])
 
-        
-            
         if cmd == "exit":
             return True
 
@@ -347,21 +397,6 @@ class Terminal:
                 print("API key saved successfully")
             return False
 
-        if cmd == "school":
-            try:
-                chrome_path = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
-                profile_arg = f"--profile-directory=Profile 1"
-                subprocess.Popen([chrome_path, profile_arg])
-                
-                time.sleep(1)
-                self.maximize_last_window()
-                time.sleep(3)
-                click_text_ocr("Aayush")
-                print("Done.")
-                return False
-            except Exception as e:
-                print(f"Error opening Chrome: {str(e)}")
-                return False
 
         if cmd == "help":
             print("\nCommands:")
@@ -414,9 +449,25 @@ class Terminal:
             shortcut = self.shortcuts[cmd]
             try:
                 if shortcut.get('arguments'):
-                    subprocess.Popen([shortcut['program'], shortcut['arguments']], shell=True)
+                    if(shortcut['ocr'] == True):
+                        subprocess.Popen([self.paths[shortcut['path']]["program"], shortcut['arguments']], shell=True)
+                        time.sleep(2)
+                        for i in range(self.max_attempts):
+                            status = click_text_ocr(shortcut["text"])
+                            if(status == True):
+                                break
+                    else:
+                        subprocess.Popen([self.paths[shortcut['path']]["program"], shortcut['arguments']], shell=True)
                 else:
-                    subprocess.Popen([shortcut['program']], shell=True)
+                    if(shortcut['ocr'] == True):
+                        subprocess.Popen([self.paths[shortcut['path']]["program"]], shell=True)
+                        time.sleep(2)
+                        for i in range(self.max_attempts):
+                            status = click_text_ocr(shortcut["text"])
+                            if(status == True):
+                                break
+                    else:
+                        subprocess.Popen([self.paths[shortcut['path']]["program"]], shell=True)
                 print(f"Executed: {cmd}")
                 time.sleep(1)
                 self.maximize_last_window()

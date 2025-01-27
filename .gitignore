@@ -2,6 +2,7 @@
 config.json
 launch.bat
 shortcuts.json
+paths.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
