@@ -21,8 +21,10 @@ import numpy as np
 import cv2
 import pytesseract
 
+
 pyautogui.FAILSAFE = True
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+
 
 def click_text_ocr(text_to_find, debug=False, min_ratio=70):
     try:
@@ -38,17 +40,14 @@ def click_text_ocr(text_to_find, debug=False, min_ratio=70):
         if debug:
             print(f"\nSearching for: '{text_to_find}'")
 
-
         for i, text in enumerate(data['text']):
             if text.strip():
-                
                 simple_ratio = fuzz.ratio(text_to_find.lower(), text.lower())
                 partial_ratio = fuzz.partial_ratio(text_to_find.lower(), text.lower())
                 token_ratio = fuzz.token_set_ratio(text_to_find.lower(), text.lower())
                 
                 best_ratio = max(simple_ratio, partial_ratio, token_ratio)
                 confidence = int(data['conf'][i])
-                
                 
                 length_penalty = 0.3 if len(text.strip()) < 2 else 1.0
                 length_bonus = min(len(text.strip()) / max(len(text_to_find), 1), 1.0)
@@ -106,6 +105,7 @@ def click_text_ocr(text_to_find, debug=False, min_ratio=70):
         print(f"Error: {e}")
         return False
 
+
 class Terminal:
     def __init__(self):
         self.shortcuts_file = "shortcuts.json"
@@ -141,36 +141,30 @@ class Terminal:
             json.dump(self.shortcuts, f, indent=4)
 
     def print_prompt(self, line=""):
-        sys.stdout.write('\r' + ' ' * (len(self.prompt) + 80))  
+        sys.stdout.write('\r' + ' ' * (len(self.prompt) + 80))
         sys.stdout.write('\r' + self.prompt + line)
         sys.stdout.flush()
 
     def close_other_windows(self):
-        """Close all windows except the current process"""
         our_pid = os.getpid()
         
         def enum_windows_callback(hwnd, _):
             if not win32gui.IsWindowVisible(hwnd):
                 return
             
-            
             if not win32gui.GetWindowText(hwnd):
                 return
                 
             try:
-                
                 _, pid = win32process.GetWindowThreadProcessId(hwnd)
-                
                 
                 if pid == our_pid:
                     return
                     
-                
                 process = psutil.Process(pid)
                 if process.name().lower() in ['explorer.exe', 'taskmgr.exe']:
                     return
                     
-                
                 win32gui.PostMessage(hwnd, win32con.WM_CLOSE, 0, 0)
                 
             except (psutil.NoSuchProcess, psutil.AccessDenied):
@@ -179,12 +173,11 @@ class Terminal:
         win32gui.EnumWindows(enum_windows_callback, None)
 
     def open_app(self, command):
-            pyautogui.hotkey('win', 's')
-            pyautogui.write(command)
-            pyautogui.press('enter') 
+        pyautogui.hotkey('win', 's')
+        pyautogui.write(command)
+        pyautogui.press('enter')
             
     def start_ngrok(self):
-        """Start ngrok and get URL via its API"""
         try:
             self.ngrok_process = subprocess.Popen(
                 ["C:\\Users\\Aayush\\Downloads\\ngrok-v3-stable-windows-amd64\\ngrok.exe", "http", "9284"],
@@ -211,19 +204,16 @@ class Terminal:
             print(f"Error starting ngrok: {str(e)}")
 
     def stop_ngrok(self):
-        """Stop all ngrok processes"""
         try:
-            
             if self.ngrok_process:
                 self.ngrok_process.terminate()
                 self.ngrok_process = None
                 
-            
             for proc in psutil.process_iter(['pid', 'name']):
                 try:
                     if 'ngrok' in proc.info['name'].lower():
                         process = psutil.Process(proc.info['pid'])
-                        process.kill()  
+                        process.kill()
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     continue
                 
@@ -237,16 +227,17 @@ class Terminal:
         if not command:
             return False
 
-        
         parts = command.strip().split(maxsplit=1)
         cmd = parts[0]
         args = parts[1] if len(parts) > 1 else ""
+        
         if cmd == "A" or cmd == "a":
             print("2")
             return False
 
         if "open" in command:
             self.open_app(command.split(" ")[1])
+            
         if cmd == "exit":
             return True
 
@@ -255,17 +246,22 @@ class Terminal:
             status = False
             counter = 0
             while(status == False):
-                counter+=1
+                counter += 1
                 status = click_text_ocr("Marvel")
                 if(counter >= self.max_attempts):
                     print(f"Max attempts reached.")
                     return False
 
-        if cmd == "fortnite":
+        if cmd == "fn":
             subprocess.Popen("C:\\Program Files (x86)\\Epic Games\\Launcher\\Portal\\Binaries\\Win64\\EpicGamesLauncher.exe")
             status = False
+            counter = 0
             while(status == False):
-                status = click_text_ocr("Fortnite")
+                counter += 1
+                status = click_text_ocr("fortnite")
+                if(counter >= self.max_attempts):
+                    print(f"Max attempts reached.")
+                    return False
 
         if cmd == "ngrok":
             if self.ngrok_process:
@@ -281,7 +277,6 @@ class Terminal:
             print("Done.")
             return False
 
-        
         if cmd == "reset":
             self.stop_ngrok()
             self.close_other_windows()
@@ -293,10 +288,7 @@ class Terminal:
                 return False
             
             chrome_parts = args.split(maxsplit=1)
-            
             profile_num = chrome_parts[0]
-
-            
             url = chrome_parts[1] if len(chrome_parts) > 1 else ""
             
             try:
@@ -322,7 +314,6 @@ class Terminal:
                 return False
 
         if cmd == "code" and args:
-            
             folder_path = os.path.join("C:\\Users\\Aayush", args)
             try:
                 subprocess.Popen([
@@ -337,8 +328,6 @@ class Terminal:
                 print(f"Error opening VSCode: {str(e)}")
                 return False
 
-        
-        
         if cmd.startswith("setapi "):
             api_key = command[7:].strip()
             if api_key:
@@ -351,14 +340,10 @@ class Terminal:
             return False
 
         if cmd == "school":
-            
             try:
                 chrome_path = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
-                
                 profile_arg = f"--profile-directory=Profile 1"
-                
                 subprocess.Popen([chrome_path, profile_arg])
-                
                 
                 time.sleep(1)
                 self.maximize_last_window()
@@ -379,9 +364,9 @@ class Terminal:
             print("gpt: [message]         - Send a message to GPT-4")
             print("setapi [key]           - Set your OpenAI API key")
             print("settings               - Open shortcut settings")
-            print("list                  - Show all shortcuts")
-            print("exit                  - Exit the program")
-            print("help                  - Show this help message")
+            print("list                   - Show all shortcuts")
+            print("exit                   - Exit the program")
+            print("help                   - Show this help message")
             return False
 
         if cmd == "list":
@@ -454,22 +439,15 @@ class Terminal:
         if windows:
             last_window = windows[-1]
             win32gui.ShowWindow(last_window, win32con.SW_MAXIMIZE)
+
     def update_display(self):
-        """
-        Updates the terminal display, handling the prompt and current line.
-        Clears the previous line completely before writing new content.
-        """
-        
         current_display = self.prompt + self.current_line
-        
         
         if self.last_line_length > 0:
             sys.stdout.write('\r' + ' ' * self.last_line_length + '\r')
         
-        
         sys.stdout.write(current_display)
         sys.stdout.flush()
-        
         
         self.last_line_length = len(current_display)
 
@@ -481,9 +459,9 @@ class Terminal:
         while True:
             char = msvcrt.getch()
             
-            if char in [b'\x00', b'\xe0']:  
+            if char in [b'\x00', b'\xe0']:
                 char = msvcrt.getch()
-                if char == b'H':  
+                if char == b'H':
                     if self.history and self.history_index < len(self.history) - 1:
                         self.history_index += 1
                         
@@ -494,8 +472,7 @@ class Terminal:
                         self.current_line = self.history[-(self.history_index + 1)]
                         sys.stdout.write(self.prompt + self.current_line)
                         sys.stdout.flush()
-                elif char == b'P':  
-                    
+                elif char == b'P':
                     sys.stdout.write('\r')
                     sys.stdout.write(' ' * (len(self.prompt) + len(self.current_line)))
                     sys.stdout.write('\r')
@@ -513,8 +490,8 @@ class Terminal:
                 
             char = char.decode('utf-8', errors='ignore')
             
-            if char == '\r':  
-                print()  
+            if char == '\r':
+                print()
                 if self.current_line:
                     self.history.append(self.current_line)
                 if self.handle_command(self.current_line):
@@ -523,7 +500,7 @@ class Terminal:
                 self.history_index = -1
                 sys.stdout.write(self.prompt)
                 sys.stdout.flush()
-            elif char == '\b':  
+            elif char == '\b':
                 if self.current_line:
                     self.current_line = self.current_line[:-1]
                     
@@ -531,10 +508,12 @@ class Terminal:
                     
                     sys.stdout.write('\r' + self.prompt + self.current_line)
                     sys.stdout.flush()
-            else:  
+            else:
                 self.current_line += char
                 sys.stdout.write(char)
                 sys.stdout.flush()
+
+
 class ShortcutGUI:
     def __init__(self, shortcuts, shortcuts_file):
         self.root = tk.Tk()
@@ -544,13 +523,10 @@ class ShortcutGUI:
         self.shortcuts_file = shortcuts_file
         self.shortcuts = shortcuts
         
-        
         self.main_frame = ttk.Frame(self.root, padding="10")
         self.main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
-        
         self.create_input_frame()
-        
         
         self.create_shortcuts_list()
 
@@ -558,29 +534,23 @@ class ShortcutGUI:
         input_frame = ttk.LabelFrame(self.main_frame, text="Add New Shortcut", padding="10")
         input_frame.grid(row=0, column=0, padx=5, pady=5, sticky='ew')
         
-        
         ttk.Label(input_frame, text="Shortcut Name:").grid(row=0, column=0, padx=5, pady=5)
         self.shortcut_name = ttk.Entry(input_frame)
         self.shortcut_name.grid(row=0, column=1, padx=5, pady=5)
-        
         
         ttk.Label(input_frame, text="Program Path:").grid(row=1, column=0, padx=5, pady=5)
         self.program_path = ttk.Entry(input_frame)
         self.program_path.grid(row=1, column=1, padx=5, pady=5)
         
-        
         ttk.Label(input_frame, text="Arguments (optional):").grid(row=2, column=0, padx=5, pady=5)
         self.arguments = ttk.Entry(input_frame)
         self.arguments.grid(row=2, column=1, padx=5, pady=5)
         
-        
         ttk.Button(input_frame, text="Add Shortcut", command=self.add_shortcut).grid(row=3, column=0, columnspan=2, pady=10)
 
     def create_shortcuts_list(self):
-        
         columns = ('Shortcut', 'Program', 'Arguments')
         self.tree = ttk.Treeview(self.main_frame, columns=columns, show='headings')
-        
         
         for col in columns:
             self.tree.heading(col, text=col)
@@ -588,22 +558,17 @@ class ShortcutGUI:
         
         self.tree.grid(row=1, column=0, padx=5, pady=5, sticky='nsew')
         
-        
         scrollbar = ttk.Scrollbar(self.main_frame, orient=tk.VERTICAL, command=self.tree.yview)
         scrollbar.grid(row=1, column=1, sticky='ns')
         self.tree.configure(yscrollcommand=scrollbar.set)
         
-        
         self.update_shortcuts_list()
-        
         
         ttk.Button(self.main_frame, text="Delete Selected", command=self.delete_shortcut).grid(row=2, column=0, pady=5)
 
     def update_shortcuts_list(self):
-        
         for item in self.tree.get_children():
             self.tree.delete(item)
-        
         
         for shortcut, details in self.shortcuts.items():
             self.tree.insert('', 'end', values=(shortcut, details['program'], details.get('arguments', '')))
@@ -624,7 +589,6 @@ class ShortcutGUI:
         
         self.save_shortcuts()
         self.update_shortcuts_list()
-        
         
         self.shortcut_name.delete(0, tk.END)
         self.program_path.delete(0, tk.END)
@@ -649,6 +613,7 @@ class ShortcutGUI:
     def run(self):
         self.root.mainloop()
 
+
 def main():
     try:
         terminal = Terminal()
@@ -656,6 +621,7 @@ def main():
     except Exception as e:
         print(f"An error occurred: {e}")
         input("Press Enter to exit...")
+
 
 if __name__ == "__main__":
     main()
