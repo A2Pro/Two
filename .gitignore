@@ -1,3 +1,8 @@
+#User config files and launch.bat
+config.json
+launch.bat
+shortcuts.json
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
