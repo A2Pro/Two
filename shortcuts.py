@@ -1,8 +1,6 @@
 import json
 import os
 import subprocess
-import tkinter as tk
-from tkinter import messagebox, ttk
 import sys
 import win32gui
 import win32con
@@ -109,8 +107,10 @@ def click_text_ocr(text_to_find, debug=False, min_ratio=70):
 class Terminal:
     def __init__(self):
         self.shortcuts_file = "shortcuts.json"
+        self.paths_file = "paths.json"
         self.ngrok_process = None
         self.ngrok_url = None
+        self.paths = self.load_paths()
         self.shortcuts = self.load_shortcuts()
         self.history = []
         self.history_index = -1
@@ -139,44 +139,72 @@ class Terminal:
     def save_shortcuts(self):
         with open(self.shortcuts_file, 'w') as f:
             json.dump(self.shortcuts, f, indent=4)
+    
+    def load_paths(self):
+        try:
+            with open(self.paths_file, 'r') as f:
+                return json.load(f)
+        except FileNotFoundError:
+            return {}
 
-    def print_prompt(self, line=""):
-        sys.stdout.write('\r' + ' ' * (len(self.prompt) + 80))
-        sys.stdout.write('\r' + self.prompt + line)
-        sys.stdout.flush()
+    def save_paths(self):
+        with open(self.paths_file, 'w') as f:
+            json.dump(self.paths, f, indent=4)
 
-    def close_other_windows(self):
-        our_pid = os.getpid()
+    def add_shortcut(self, name, program, arguments=""):
+        if not name or not program:
+            print("Error: Shortcut name and program path are required!")
+            return
         
-        def enum_windows_callback(hwnd, _):
-            if not win32gui.IsWindowVisible(hwnd):
-                return
-            
-            if not win32gui.GetWindowText(hwnd):
-                return
-                
-            try:
-                _, pid = win32process.GetWindowThreadProcessId(hwnd)
-                
-                if pid == our_pid:
-                    return
-                    
-                process = psutil.Process(pid)
-                if process.name().lower() in ['explorer.exe', 'taskmgr.exe']:
-                    return
-                    
-                win32gui.PostMessage(hwnd, win32con.WM_CLOSE, 0, 0)
-                
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                pass
-        
-        win32gui.EnumWindows(enum_windows_callback, None)
+        self.shortcuts[name] = {
+            'program': program,
+            'arguments': arguments
+        }
+        self.save_shortcuts()
+        print(f"Added shortcut: {name}")
 
-    def open_app(self, command):
-        pyautogui.hotkey('win', 's')
-        pyautogui.write(command)
-        pyautogui.press('enter')
-            
+    def remove_shortcut(self, name):
+        if name in self.shortcuts:
+            del self.shortcuts[name]
+            self.save_shortcuts()
+            print(f"Removed shortcut: {name}")
+        else:
+            print(f"Error: Shortcut '{name}' not found")
+
+    def list_shortcuts(self):
+        if not self.shortcuts:
+            print("No shortcuts configured.")
+            return
+        
+        print("\nAvailable Shortcuts:")
+        for name, details in self.shortcuts.items():
+            args = details.get('arguments', '')
+            print(f"{name}: {details['program']} {args}")
+
+    def handle_settings_command(self, args):
+        if not args:
+            print("\nSettings Commands:")
+            print("settings add <name> <program> [arguments] - Add a new shortcut")
+            print("settings remove <name>                    - Remove a shortcut")
+            print("settings list                            - List all shortcuts")
+            return False
+
+        parts = args.split(maxsplit=2)
+        subcommand = parts[0]
+
+        if subcommand == "add" and len(parts) >= 3:
+            name = parts[1]
+            program_args = parts[2].split(maxsplit=1)
+            program = program_args[0]
+            arguments = program_args[1] if len(program_args) > 1 else ""
+            self.add_shortcut(name, program, arguments)
+        elif subcommand == "remove" and len(parts) == 2:
+            self.remove_shortcut(parts[1])
+        elif subcommand == "list":
+            self.list_shortcuts()
+        else:
+            print("Invalid settings command. Type 'settings' for usage.")
+
     def start_ngrok(self):
         try:
             self.ngrok_process = subprocess.Popen(
@@ -219,7 +247,7 @@ class Terminal:
                 
             self.ngrok_url = None
             print("Stopped all ngrok processes")
-            
+        
         except Exception as e:
             print(f"Error stopping ngrok: {str(e)}")
 
@@ -237,31 +265,11 @@ class Terminal:
 
         if "open" in command:
             self.open_app(command.split(" ")[1])
+
+        
             
         if cmd == "exit":
             return True
-
-        if cmd == "rivals":
-            subprocess.Popen("C:\\Program Files (x86)\\Epic Games\\Launcher\\Portal\\Binaries\\Win64\\EpicGamesLauncher.exe")
-            status = False
-            counter = 0
-            while(status == False):
-                counter += 1
-                status = click_text_ocr("Marvel")
-                if(counter >= self.max_attempts):
-                    print(f"Max attempts reached.")
-                    return False
-
-        if cmd == "fn":
-            subprocess.Popen("C:\\Program Files (x86)\\Epic Games\\Launcher\\Portal\\Binaries\\Win64\\EpicGamesLauncher.exe")
-            status = False
-            counter = 0
-            while(status == False):
-                counter += 1
-                status = click_text_ocr("fortnite")
-                if(counter >= self.max_attempts):
-                    print(f"Max attempts reached.")
-                    return False
 
         if cmd == "ngrok":
             if self.ngrok_process:
@@ -363,26 +371,18 @@ class Terminal:
             print("ngrok-stop             - Kill all active ngrok tunnels")
             print("gpt: [message]         - Send a message to GPT-4")
             print("setapi [key]           - Set your OpenAI API key")
-            print("settings               - Open shortcut settings")
+            print("settings               - Manage shortcuts")
             print("list                   - Show all shortcuts")
             print("exit                   - Exit the program")
             print("help                   - Show this help message")
             return False
 
         if cmd == "list":
-            if not self.shortcuts:
-                print("No shortcuts configured. Use 'settings' to add some.")
-                return False
-            print("Available Shortcuts:")
-            for name, details in self.shortcuts.items():
-                args = details.get('arguments', '')
-                print(f"{name}: {details['program']} {args}")
+            self.list_shortcuts()
             return False
 
         if cmd == "settings":
-            app = ShortcutGUI(self.shortcuts, self.shortcuts_file)
-            app.run()
-            self.shortcuts = self.load_shortcuts()
+            self.handle_settings_command(args)
             return False
 
         if cmd.startswith("gpt:"):
@@ -444,7 +444,7 @@ class Terminal:
         current_display = self.prompt + self.current_line
         
         if self.last_line_length > 0:
-            sys.stdout.write('\r' + ' ' * self.last_line_length + '\r')
+            sys.stdout.write('\r' + ' '* self.last_line_length + '\r')
         
         sys.stdout.write(current_display)
         sys.stdout.flush()
@@ -461,7 +461,7 @@ class Terminal:
             
             if char in [b'\x00', b'\xe0']:
                 char = msvcrt.getch()
-                if char == b'H':
+                if char == b'H':  # Up arrow
                     if self.history and self.history_index < len(self.history) - 1:
                         self.history_index += 1
                         
@@ -472,7 +472,7 @@ class Terminal:
                         self.current_line = self.history[-(self.history_index + 1)]
                         sys.stdout.write(self.prompt + self.current_line)
                         sys.stdout.flush()
-                elif char == b'P':
+                elif char == b'P':  # Down arrow
                     sys.stdout.write('\r')
                     sys.stdout.write(' ' * (len(self.prompt) + len(self.current_line)))
                     sys.stdout.write('\r')
@@ -490,7 +490,7 @@ class Terminal:
                 
             char = char.decode('utf-8', errors='ignore')
             
-            if char == '\r':
+            if char == '\r':  # Enter key
                 print()
                 if self.current_line:
                     self.history.append(self.current_line)
@@ -500,7 +500,7 @@ class Terminal:
                 self.history_index = -1
                 sys.stdout.write(self.prompt)
                 sys.stdout.flush()
-            elif char == '\b':
+            elif char == '\b':  # Backspace
                 if self.current_line:
                     self.current_line = self.current_line[:-1]
                     
@@ -508,110 +508,10 @@ class Terminal:
                     
                     sys.stdout.write('\r' + self.prompt + self.current_line)
                     sys.stdout.flush()
-            else:
+            else:  # Regular character input
                 self.current_line += char
                 sys.stdout.write(char)
                 sys.stdout.flush()
-
-
-class ShortcutGUI:
-    def __init__(self, shortcuts, shortcuts_file):
-        self.root = tk.Tk()
-        self.root.title("Quick Launch Settings")
-        self.root.geometry("600x400")
-        
-        self.shortcuts_file = shortcuts_file
-        self.shortcuts = shortcuts
-        
-        self.main_frame = ttk.Frame(self.root, padding="10")
-        self.main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        
-        self.create_input_frame()
-        
-        self.create_shortcuts_list()
-
-    def create_input_frame(self):
-        input_frame = ttk.LabelFrame(self.main_frame, text="Add New Shortcut", padding="10")
-        input_frame.grid(row=0, column=0, padx=5, pady=5, sticky='ew')
-        
-        ttk.Label(input_frame, text="Shortcut Name:").grid(row=0, column=0, padx=5, pady=5)
-        self.shortcut_name = ttk.Entry(input_frame)
-        self.shortcut_name.grid(row=0, column=1, padx=5, pady=5)
-        
-        ttk.Label(input_frame, text="Program Path:").grid(row=1, column=0, padx=5, pady=5)
-        self.program_path = ttk.Entry(input_frame)
-        self.program_path.grid(row=1, column=1, padx=5, pady=5)
-        
-        ttk.Label(input_frame, text="Arguments (optional):").grid(row=2, column=0, padx=5, pady=5)
-        self.arguments = ttk.Entry(input_frame)
-        self.arguments.grid(row=2, column=1, padx=5, pady=5)
-        
-        ttk.Button(input_frame, text="Add Shortcut", command=self.add_shortcut).grid(row=3, column=0, columnspan=2, pady=10)
-
-    def create_shortcuts_list(self):
-        columns = ('Shortcut', 'Program', 'Arguments')
-        self.tree = ttk.Treeview(self.main_frame, columns=columns, show='headings')
-        
-        for col in columns:
-            self.tree.heading(col, text=col)
-            self.tree.column(col, width=150)
-        
-        self.tree.grid(row=1, column=0, padx=5, pady=5, sticky='nsew')
-        
-        scrollbar = ttk.Scrollbar(self.main_frame, orient=tk.VERTICAL, command=self.tree.yview)
-        scrollbar.grid(row=1, column=1, sticky='ns')
-        self.tree.configure(yscrollcommand=scrollbar.set)
-        
-        self.update_shortcuts_list()
-        
-        ttk.Button(self.main_frame, text="Delete Selected", command=self.delete_shortcut).grid(row=2, column=0, pady=5)
-
-    def update_shortcuts_list(self):
-        for item in self.tree.get_children():
-            self.tree.delete(item)
-        
-        for shortcut, details in self.shortcuts.items():
-            self.tree.insert('', 'end', values=(shortcut, details['program'], details.get('arguments', '')))
-
-    def add_shortcut(self):
-        name = self.shortcut_name.get().strip()
-        program = self.program_path.get().strip()
-        args = self.arguments.get().strip()
-        
-        if not name or not program:
-            messagebox.showerror("Error", "Shortcut name and program path are required!")
-            return
-        
-        self.shortcuts[name] = {
-            'program': program,
-            'arguments': args
-        }
-        
-        self.save_shortcuts()
-        self.update_shortcuts_list()
-        
-        self.shortcut_name.delete(0, tk.END)
-        self.program_path.delete(0, tk.END)
-        self.arguments.delete(0, tk.END)
-
-    def delete_shortcut(self):
-        selected_item = self.tree.selection()
-        if not selected_item:
-            messagebox.showerror("Error", "Please select a shortcut to delete!")
-            return
-        
-        shortcut = self.tree.item(selected_item[0])['values'][0]
-        if shortcut in self.shortcuts:
-            del self.shortcuts[shortcut]
-            self.save_shortcuts()
-            self.update_shortcuts_list()
-
-    def save_shortcuts(self):
-        with open(self.shortcuts_file, 'w') as f:
-            json.dump(self.shortcuts, f, indent=4)
-
-    def run(self):
-        self.root.mainloop()
 
 
 def main():
